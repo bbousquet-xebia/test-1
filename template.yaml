@@ -36,6 +36,8 @@ Resources:
       Tracing: Active
       Policies:
         - AWSXrayWriteOnlyAccess
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt Queue.QueueName
       Events:
         apiGET:
           Type: Api
@@ -43,8 +45,42 @@ Resources:
             Path: /
             Method: GET
             RestApiId: !Ref api
+      Environment:
+        Variables:
+          QUEUE_NAME: !GetAtt Queue.QueueName
+          QUEUE_ARN: !GetAtt Queue.Arn
+          QUEUE_URL: !Ref Queue
     Metadata:
       StackeryName: getWelcomePage
+  Queue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-Queue
+    Metadata:
+      StackeryName: test_sqs
+  Function:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-Function
+      Description: !Sub
+        - Stack ${StackTagName} Environment ${EnvironmentTagName} Function ${ResourceName}
+        - ResourceName: get_sns_topic
+      CodeUri: src/Function
+      Handler: handler.handler
+      Runtime: python3.6
+      MemorySize: 3008
+      Timeout: 30
+      Tracing: Active
+      Policies:
+        - AWSXrayWriteOnlyAccess
+      Events:
+        Queue:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt Queue.Arn
+            BatchSize: 1
+    Metadata:
+      StackeryName: get_sns_topic
 Parameters:
   StackeryStackTagName:
     Type: String
@@ -55,3 +91,9 @@ Parameters:
   StackeryEnvironmentAPIGatewayStageName:
     Type: String
     Description: Environment name used for API Gateway Stage names (injected by Stackery at deployment time)
+  StackTagName:
+    Type: String
+    Description: Stack Name (injected by Stackery at deployment time)
+  EnvironmentTagName:
+    Type: String
+    Description: Environment Name (injected by Stackery at deployment time)
